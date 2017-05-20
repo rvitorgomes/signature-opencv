@@ -4,6 +4,7 @@ import sys
 import glob
 import argparse
 import json
+import math
 
 import cv2
 import numpy as np
@@ -35,67 +36,62 @@ def load_dataset():
 	dataset = [ file for file in glob.glob(path) ]
 	return dataset
 
-# Apply Gaussian Filter to reduce noise
-# Apply Threshold to pixels inversion and inscrese difference between interested pixels from background
-def apply_filters(image):
-	blur = cv2.GaussianBlur(image,(5,5),0)
-	ret, im_th = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV)
-	return im_th
 
-#Feature Extractions
+#Important
+#Test few filters
+#Sobel
+#Canny
+#Watershed
 
-#Local Binary Pattern
-def feature_extractor_LBP(image):
+# http://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html
+def find_contours(image):
+	#erosion
+	kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
+	grad = cv2.morphologyEx(image, cv2.MORPH_GRADIENT, kernel)
+	#binarize
+	_, thresh = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+	#dilation
+	kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+	dilated = cv2.dilate(thresh,kernel, iterations = 4) # dilate
+	# connected = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel)
+	cv2.imshow('dilated', dilated)
+	_, contours, hierarchy = cv2.findContours(dilated,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
+	return contours
 
-	#Commom 3x3 kernel usage and 8 neighbohors
-	radius = 3
-	points = 8 * radius
-	eps = 1e-7
 
-	#Uniform LBP to increase rotation invariance
-	lbp = local_binary_pattern(image, points, radius, method="uniform")
 
-	(hist, bins) = np.histogram(lbp.ravel(),
-		bins=np.arange(0, 256),
-		range=(0, 256))
 
-	#Calculate the histogram
-	hist = hist.astype("float")
-	#Normalization
-	hist /= (hist.sum() + eps)
+def drawRectangle(original, contours):
+	for contour in contours:
+		# get rectangle bounding contour
+		[x, y, w, h] = cv2.boundingRect(contour)
 
-	return hist
+		valid = original.shape[1] * 0.50
+		#be smart and draw only in common signature regions
+		# bootom of the figure
+		# horizontal text
+		if (w > h and y > valid and w > 20 and h > 20 ):
+			# draw rectangle around contour on original image
+			cv2.rectangle(original, (x, y), (x + w, y + h), (255, 0, 255), 2)
+			cv2.imshow('contours', original)
 
-#HOG with optimized pixels_per_cell that extract most relevant information
-def feature_extractor_HOG(image):
-	features = hog(
-		image,
-		orientations=9,
-		pixels_per_cell=(16,16),
-        cells_per_block=(1, 1),
-		visualise=False
-	)
-	return features
+#Crop the image to commonly signature areas ( bottom left or bottom right)
+def applyROI(image):
+# 	width = image.shape[0]
+# 	height = image.shape[1]
+# 	width_ROI = math.floor(width * 0.30)
+# 	height_ROI = math.floor(height * 0.30)
+
+# 	#bottom left
+# 	image = image[  width - width_ROI : width,  0 : height_ROI ]
+	image = cv2.resize(image, (256, 256))
+	return image
+
 
 
 def process_images(dataset):
 	print("Start Processing")
 	for (i, imagePath) in enumerate(dataset):
-
-		# get the char class from dictionary
-		label = getLabelClass(label)
-
-		# applying the filters on the image
-		image = cv2.imread(imagePath, 0)
-		filtered_image = apply_filters(image)
-
-		# calculate feature extraction for each raw
-		hog = feature_extractor_HOG(filtered_image)
-		lbp = feature_extractor_LBP(filtered_image)
-
-		# update responses
-		processed_data_hog[label].append(hog)
-		processed_data_lbp[label].append(lbp)
 
 		# Logging to follow uptime ( +- 5min to process)
 		if i > 0 and i % 1000 == 0:
@@ -105,8 +101,12 @@ def process_images(dataset):
 
 def main(argv):
 
-	DATASET = load_dataset()
-
+	# DATASET = load_dataset()
+	# process_images(DATASET[0:2])
+	image = cv2.imread('dataset/example_5.jpg', 0)
+	image = applyROI(image)
+	contours = find_contours(image)
+	drawRectangle(image, contours)
 	cv2.waitKey(0)
 
 if __name__ == "__main__":

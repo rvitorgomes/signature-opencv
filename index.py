@@ -49,13 +49,6 @@ def load_dataset():
 
 	return dataset,writePath
 
-
-#Important
-#Test few filters
-#Sobel
-#Canny
-#Watershed
-
 # http://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_morphological_ops/py_morphological_ops.html
 def find_contours(image):
 	#erosion
@@ -65,9 +58,12 @@ def find_contours(image):
 	_, thresh = cv2.threshold(grad, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 	#dilation
 	kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))
-	# dilated = cv2.dilate(thresh,kernel, iterations = 1) # dilate
+	# dilated = cv2.dilate(thresh,kernel, iterations = 3) # dilate
 	connected = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
 	_, contours, hierarchy = cv2.findContours(connected,cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
+	cv2.imshow('contours', connected)
+	cv2.imwrite('results/' + 'results_'+ 'teste' +'.jpg', connected)
+	cv2.waitKey(0)
 	return contours
 
 
@@ -76,14 +72,14 @@ def drawRectangle(original, contours):
 		# get rectangle bounding contour
 		[x, y, w, h] = cv2.boundingRect(contour)
 
-		valid = original.shape[1] * 0.50
 		#be smart and draw only in common signature regions
+		valid = original.shape[1] * 0.50
 		# bootom of the figure
 		# horizontal text
-		# if (w > h and y > valid and w > 20 and h > 20 ):
-			# draw rectangle around contour on original image
-		marked = cv2.rectangle(original, (x, y), (x + w, y + h), (255, 0, 255), 2)
-		return marked
+		if (w > h and y > valid and w > 20 and h > 20 ):
+		# draw rectangle around contour on original image
+			marked = cv2.rectangle(original, (x, y), (x + w, y + h), (255, 0, 255), 2)
+			return marked
 
 #Resize the image to do analysis easier
 def applyROI(image):
@@ -95,12 +91,12 @@ def process_images(dataset):
 	for (i, imagePath) in enumerate(dataset):
 
 		image = cv2.imread(imagePath, 0)
-		image = applyROI(image)
+		# image = applyROI(image)
 		contours = find_contours(image)
-
-		# save the processed image
+		# Get the image with rectangles and save
 		img_processed = drawRectangle(image, contours)
-		RESULTS.append(img_processed)
+		cv2.imshow('contours', img_processed)
+		cv2.imwrite('results/' + 'results_'+ str(i) +'.jpg', img_processed)
 
 		# Logging to follow uptime
 		if i > 0 and i % 10 == 0:
@@ -111,7 +107,7 @@ def process_images(dataset):
 def main(argv):
 	DATASET,WRITE_PATH = load_dataset()
 	process_images(DATASET)
-	save_results(WRITE_PATH)
+	# save_results(WRITE_PATH)
 
 if __name__ == "__main__":
     main(sys.argv)
